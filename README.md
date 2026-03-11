@@ -36,23 +36,20 @@ adk-langgraph-demo/
 
 ---
 
-## 🛠️ Initial Setup
+## 🛠️ Initial Setup (Python 3.12 Recommended)
 
-### 1. Installation
-Clone the repository and set up your Python environment:
-```bash
-git clone <your-repo-url>
-cd adk-langgraph-demo
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+1. **Environment Setup:**
+   ```bash
+   python3.12 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
 
-### 2. Configure Credentials
-Create a `.env` file in the root directory and add your DigitalOcean Model Access Key:
-```bash
-GRADIENT_MODEL_ACCESS_KEY="your_model_access_key_here"
-```
+2. **Credentials (.env):**
+   ```text
+   GRADIENT_MODEL_ACCESS_KEY="your_model_key"
+   DIGITALOCEAN_API_TOKEN="your_do_token"
+   ```
 
 ---
 
