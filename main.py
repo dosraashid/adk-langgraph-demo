@@ -1,4 +1,5 @@
 import os
+import asyncio
 from dotenv import load_dotenv
 from gradient_adk import entrypoint
 from langchain_gradient import ChatGradient
@@ -7,54 +8,76 @@ from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from state import AgentState
-from tools import local_tools
+# MCP Imports
+from mcp import StdioServerParameters
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
-# Load API keys from .env
 load_dotenv()
 
-# 1. Initialize DO Serverless Inference
-# It dynamically reads GRADIENT_MODEL_ACCESS_KEY from your .env file
-llm = ChatGradient(
-    model="llama3.3-70b-instruct",
-    api_key=os.getenv("GRADIENT_MODEL_ACCESS_KEY")
-)
-llm_with_tools = llm.bind_tools(local_tools)
+async def run_agent_with_mcp(user_input: str, thread_id: str):
+    # 1. Configure the Official DO MCP Server
+    # We enable specific services (apps, droplets, databases) to keep context lean
+    server_params = StdioServerParameters(
+        command="npx",
+        args=["-y", "@digitalocean/mcp", "--services", "apps,droplets,databases"],
+        env={**os.environ, "DIGITALOCEAN_API_TOKEN": os.getenv("DIGITALOCEAN_API_TOKEN")}
+    )
 
-# 2. Define the Agent Logic
-def call_model(state: AgentState):
-    memory_context = "\n".join(state.get("shared_memory", ["No prior history."]))
-    sys_msg = SystemMessage(content=(
-        "You are a DigitalOcean Cloud DevOps Assistant. "
-        "Use tools to look up users by email, check their servers, and restart failing ones. "
-        f"\n[LONG-TERM MEMORY]: {memory_context}"
-    ))
-    response = llm_with_tools.invoke([sys_msg] + state["messages"])
-    return {"messages": [response]}
+    # 2. Open the MCP connection
+    async with MultiServerMCPClient({"digitalocean": server_params}) as client:
+        # Dynamically fetch all DO tools
+        mcp_tools = await client.get_tools()
 
-# 3. Build the LangGraph Workflow
-workflow = StateGraph(AgentState)
-workflow.add_node("agent", call_model)
-workflow.add_node("tools", ToolNode(local_tools))
+        # 3. Define the AI Brain
+        def call_model(state):
+            llm = ChatGradient(
+                model="llama3.3-70b-instruct",
+                api_key=os.getenv("GRADIENT_MODEL_ACCESS_KEY")
+            )
+            # Bind all discovered MCP tools to the LLM
+            llm_with_tools = llm.bind_tools(mcp_tools)
+            
+            sys_msg = SystemMessage(content=(
+                "You are an official DigitalOcean Cloud Assistant. "
+                "You have direct access to the user's infrastructure via MCP. "
+                "Be concise, and always confirm before performing destructive actions."
+            ))
+            
+            response = llm_with_tools.invoke([sys_msg] + state["messages"])
+            return {"messages": [response]}
 
-workflow.add_edge(START, "agent")
-workflow.add_conditional_edges("agent", lambda x: "tools" if x["messages"][-1].tool_calls else END)
-workflow.add_edge("tools", "agent")
+        # 4. Standard LangGraph Orchestration
+        workflow = StateGraph(dict) # Using a basic dict for state simplicity here
+        workflow.add_node("agent", call_model)
+        workflow.add_node("tools", ToolNode(mcp_tools))
 
-# Attach Persistence
-app = workflow.compile(checkpointer=MemorySaver())
+        workflow.add_edge(START, "agent")
+        workflow.add_conditional_edges(
+            "agent", 
+            lambda x: "tools" if x["messages"][-1].tool_calls else END
+        )
+        workflow.add_edge("tools", "agent")
 
-# 4. The DigitalOcean ADK Entrypoint
+        # Compile with persistence
+        app = workflow.compile(checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # Execute
+        result = await app.ainvoke(
+            {"messages": [HumanMessage(content=user_input)]}, 
+            config
+        )
+        return result["messages"][-1].content
+
 @entrypoint
 def main(payload: dict) -> dict:
-    user_input = payload.get("prompt", "Hello")
-    thread_id = payload.get("thread_id", "default-thread")
-    config = {"configurable": {"thread_id": thread_id}}
+    user_input = payload.get("prompt", "List my apps")
+    thread_id = payload.get("thread_id", "mcp-session-1")
     
-    # Run the graph
-    result = app.invoke({"messages": [HumanMessage(content=user_input)]}, config)
+    # Run the async loop
+    response_text = asyncio.run(run_agent_with_mcp(user_input, thread_id))
     
     return {
-        "response": result["messages"][-1].content,
+        "response": response_text,
         "thread_id": thread_id
     }
