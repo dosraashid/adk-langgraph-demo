@@ -109,7 +109,7 @@ async def main(body: dict):
 # --- 4. INTERACTIVE DEMO MODE ---
 async def interactive_chat():
     """Run a continuous, memory-aware chat in your terminal."""
-    print("\n[CloudPilot DevOps Agent: Online]")
+    print("\n[Demo DevOps Agent: Online]")
     print("Inference: Llama 3.3 (Serverless Inference)")
     print("Tools: Official DigitalOcean MCP (stdio)\n")
     
