@@ -29,15 +29,21 @@ class AgentState(TypedDict):
 # 1. Define the Agent Logic
 async def run_mcp_agent(user_input: str, thread_id: str):
     
-    # --- UPDATED: Connect via SSE to the remote DigitalOcean MCP Server ---
-    # Make sure to replace the URL below with your actual DigitalOcean App Platform URL
+    # --- Connect via SSE to the remote DigitalOcean MCP Server ---
+    mcp_url = os.getenv("MCP_SERVER_URL", "https://dolphin-app-q4swm.ondigitalocean.app/mcp")
+    do_token = os.getenv("DIGITALOCEAN_API_TOKEN", "")
+    
     client = MultiServerMCPClient({
         "digitalocean": {
             "transport": "sse",
-            "url": os.getenv("MCP_SERVER_URL", "https://your-app-name-abcde.ondigitalocean.app/sse")
+            "url": mcp_url,
+            "headers": {
+                "Authorization": f"Bearer {do_token}"
+            }
         }
     })
     
+    # Fetch tools dynamically from the remote server
     tools = await client.get_tools()
     
     # Using api_key parameter to bypass the environment lookup error
