@@ -17,7 +17,7 @@ This repository is a production-ready, dual-purpose template demonstrating the "
 ### 1. Installation
 Clone the repository and set up your Python environment:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/dosraashid/adk-langgraph-demo
 cd adk-langgraph-demo
 python3 -m venv venv
 source venv/bin/activate
