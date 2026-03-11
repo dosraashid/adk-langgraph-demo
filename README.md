@@ -88,7 +88,7 @@ Use these prompts to showcase the unique capabilities of the **MCP + LangGraph a
 Install the required Python dependencies:
 
 ```bash
-git clone https://github.com/dosraashid/adk-langgraph-demo
+git clone https://github.com/dosraashid/adk-langgraph-mcp-demo
 cd adk-langgraph-demo
 python3.12 -m venv venv
 source venv/bin/activate
