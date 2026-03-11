@@ -4,6 +4,30 @@ This repository is a production-ready, dual-purpose template demonstrating the "
 
 ---
 
+## 📂 Project Structure & File Guide
+
+Here is a breakdown of how this agent is built and what each file does:
+
+```text
+adk-langgraph-demo/
+├── .env                # (Local Only) Stores your private GRADIENT_MODEL_ACCESS_KEY.
+├── .gradient/          
+│   └── agent.yml       # The blueprint DigitalOcean reads when you run `deploy`.
+├── main.py             # The core brain. Connects LangGraph, ADK, and the LLM together.
+├── README.md           # This instruction manual.
+├── requirements.txt    # The list of Python libraries needed to run the agent.
+├── state.py            # Defines the memory structure so the agent remembers threads.
+└── tools.py            # The "hands" of the AI (mock database and tool functions).
+```
+
+### Detailed File Breakdown
+* **`main.py`**: The main entrypoint. It receives the web request, injects the `thread_id` into LangGraph's checkpointer, passes the prompt to DigitalOcean's Serverless Inference API, and returns the final response.
+* **`tools.py`**: This is where your custom business logic lives. It contains the mock database (Users and Servers) and the `@tool` decorated functions the AI can call to look up data or perform actions.
+* **`state.py`**: The schema for the agent's memory. It defines how standard conversation messages and custom shared memory (like user IDs) are appended and stored.
+* **`.gradient/agent.yml`**: A required configuration file for the DigitalOcean Cloud Panel. It tells the cloud environment how to host and run your `main.py` file.
+
+---
+
 ## 🌟 Key Capabilities
 * **LangGraph Orchestration**: Handles multi-step reasoning (e.g., finding a user, then checking their assigned servers).
 * **Managed Persistence**: Uses LangGraph Checkpointers to remember conversation history and isolate sessions via `thread_id`.
@@ -17,7 +41,7 @@ This repository is a production-ready, dual-purpose template demonstrating the "
 ### 1. Installation
 Clone the repository and set up your Python environment:
 ```bash
-git clone https://github.com/dosraashid/adk-langgraph-demo
+git clone <your-repo-url>
 cd adk-langgraph-demo
 python3 -m venv venv
 source venv/bin/activate
