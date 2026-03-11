@@ -1,91 +1,85 @@
 import os
 import asyncio
+from typing import Optional
 from dotenv import load_dotenv
-from gradient_adk import entrypoint
+
+# LangChain & LangGraph imports
 from langchain_gradient import ChatGradient
+from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_core.messages import HumanMessage, SystemMessage
 
-# MCP Imports
-from mcp import StdioServerParameters
+# MCP Adapter imports
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from state import AgentState
+# Gradient ADK imports
+from gradient_adk import entrypoint
 
-# 1. Setup Environment
+# Load variables from .env
 load_dotenv()
 
+# 1. Define the Agent Logic
 async def run_mcp_agent(user_input: str, thread_id: str):
-    # Retrieve the API Token for the MCP Server
-    do_token = os.getenv("DIGITALOCEAN_API_TOKEN")
+    client = MultiServerMCPClient({
+        "digitalocean": {
+            "transport": "stdio",
+            "command": "npx",
+            "args": ["-y", "@digitalocean/mcp", "--services", "apps,droplets,databases"],
+            "env": {
+                **os.environ, 
+                "DIGITALOCEAN_API_TOKEN": os.getenv("DIGITALOCEAN_API_TOKEN")
+            }
+        }
+    })
     
-    # 2. Configure the DigitalOcean MCP Server (Node.js based)
-    server_params = StdioServerParameters(
-        command="npx",
-        args=["-y", "@digitalocean/mcp", "--services", "apps,droplets,databases"],
-        env={**os.environ, "DIGITALOCEAN_API_TOKEN": do_token}
+    tools = await client.get_tools()
+    
+    # Using api_key parameter to bypass the environment lookup error
+    llm = ChatGradient(
+        model="llama3.3-70b-instruct",
+        api_key=os.getenv("GRADIENT_MODEL_ACCESS_KEY") or os.getenv("DIGITALOCEAN_INFERENCE_KEY"),
     )
+    
+    llm_with_tools = llm.bind_tools(tools)
 
-    # 3. Establish the MCP Connection
-    # We use 'async with' to ensure the background Node process closes correctly
-    async with MultiServerMCPClient({"digitalocean": server_params}) as client:
-        
-        # This dynamically fetches 30+ real DigitalOcean tools!
-        mcp_tools = await client.get_tools()
+    from state import AgentState
 
-        # 4. Define the AI Thinking Node
-        def call_model(state: AgentState):
-            llm = ChatGradient(
-                model="llama3.3-70b-instruct",
-                api_key=os.getenv("GRADIENT_MODEL_ACCESS_KEY", "missing_key")
-            )
-            llm_with_tools = llm.bind_tools(mcp_tools)
-            
-            sys_msg = SystemMessage(content=(
-                "You are the official DigitalOcean Cloud Agent. "
-                "You have direct access to manage real user infrastructure via MCP. "
-                "Current time: March 2026. Be professional and safe."
-            ))
-            
-            response = llm_with_tools.invoke([sys_msg] + state["messages"])
-            return {"messages": [response]}
+    def call_model(state: AgentState):
+        response = llm_with_tools.invoke(state["messages"])
+        return {"messages": [response]}
 
-        # 5. Build the LangGraph
-        workflow = StateGraph(AgentState)
-        workflow.add_node("agent", call_model)
-        workflow.add_node("tools", ToolNode(mcp_tools))
+    workflow = StateGraph(AgentState)
+    workflow.add_node("agent", call_model)
+    workflow.add_node("action", ToolNode(tools))
+    workflow.add_edge(START, "agent")
+    
+    def should_continue(state: AgentState):
+        last_message = state["messages"][-1]
+        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+            return "action"
+        return END
 
-        workflow.add_edge(START, "agent")
-        
-        # Router: If the AI wants to use a DO tool, go to 'tools', else END
-        workflow.add_conditional_edges(
-            "agent",
-            lambda x: "tools" if x["messages"][-1].tool_calls else END
-        )
-        workflow.add_edge("tools", "agent")
+    workflow.add_conditional_edges("agent", should_continue)
+    workflow.add_edge("action", "agent")
 
-        # Compile with persistent thread memory
-        app = workflow.compile(checkpointer=MemorySaver())
-        config = {"configurable": {"thread_id": thread_id}}
-        
-        # 6. Run the agent asynchronously
-        result = await app.ainvoke(
-            {"messages": [HumanMessage(content=user_input)]}, 
-            config
-        )
-        return result["messages"][-1].content
+    checkpointer = MemorySaver()
+    app = workflow.compile(checkpointer=checkpointer)
 
+    config = {"configurable": {"thread_id": thread_id}}
+    input_state = {"messages": [HumanMessage(content=user_input)]}
+    
+    result = await app.ainvoke(input_state, config=config)
+    return result["messages"][-1].content
+
+# 2. The "Front Door" (Entrypoint)
 @entrypoint
-def main(payload: dict) -> dict:
-    # This is the "front door" of your DigitalOcean Agent
-    user_input = payload.get("prompt", "Hello")
-    thread_id = payload.get("thread_id", "mcp-demo-thread")
-    
-    # Use asyncio.run to handle the 3.14/3.12 bridge
-    final_response = asyncio.run(run_mcp_agent(user_input, thread_id))
-    
+async def main(body: dict):
+    user_input = body.get("prompt", "Hello")
+    thread_id = body.get("thread_id", "mcp-demo-thread")
+
+    final_response = await run_mcp_agent(user_input, thread_id)
+
     return {
         "response": final_response,
         "thread_id": thread_id
