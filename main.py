@@ -12,57 +12,65 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from mcp import StdioServerParameters
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+from state import AgentState
+
+# 1. Setup Environment
 load_dotenv()
 
-async def run_agent_with_mcp(user_input: str, thread_id: str):
-    # 1. Configure the Official DO MCP Server
-    # We enable specific services (apps, droplets, databases) to keep context lean
+async def run_mcp_agent(user_input: str, thread_id: str):
+    # Retrieve the API Token for the MCP Server
+    do_token = os.getenv("DIGITALOCEAN_API_TOKEN")
+    
+    # 2. Configure the DigitalOcean MCP Server (Node.js based)
     server_params = StdioServerParameters(
         command="npx",
         args=["-y", "@digitalocean/mcp", "--services", "apps,droplets,databases"],
-        env={**os.environ, "DIGITALOCEAN_API_TOKEN": os.getenv("DIGITALOCEAN_API_TOKEN")}
+        env={**os.environ, "DIGITALOCEAN_API_TOKEN": do_token}
     )
 
-    # 2. Open the MCP connection
+    # 3. Establish the MCP Connection
+    # We use 'async with' to ensure the background Node process closes correctly
     async with MultiServerMCPClient({"digitalocean": server_params}) as client:
-        # Dynamically fetch all DO tools
+        
+        # This dynamically fetches 30+ real DigitalOcean tools!
         mcp_tools = await client.get_tools()
 
-        # 3. Define the AI Brain
-        def call_model(state):
+        # 4. Define the AI Thinking Node
+        def call_model(state: AgentState):
             llm = ChatGradient(
                 model="llama3.3-70b-instruct",
-                api_key=os.getenv("GRADIENT_MODEL_ACCESS_KEY")
+                api_key=os.getenv("GRADIENT_MODEL_ACCESS_KEY", "missing_key")
             )
-            # Bind all discovered MCP tools to the LLM
             llm_with_tools = llm.bind_tools(mcp_tools)
             
             sys_msg = SystemMessage(content=(
-                "You are an official DigitalOcean Cloud Assistant. "
-                "You have direct access to the user's infrastructure via MCP. "
-                "Be concise, and always confirm before performing destructive actions."
+                "You are the official DigitalOcean Cloud Agent. "
+                "You have direct access to manage real user infrastructure via MCP. "
+                "Current time: March 2026. Be professional and safe."
             ))
             
             response = llm_with_tools.invoke([sys_msg] + state["messages"])
             return {"messages": [response]}
 
-        # 4. Standard LangGraph Orchestration
-        workflow = StateGraph(dict) # Using a basic dict for state simplicity here
+        # 5. Build the LangGraph
+        workflow = StateGraph(AgentState)
         workflow.add_node("agent", call_model)
         workflow.add_node("tools", ToolNode(mcp_tools))
 
         workflow.add_edge(START, "agent")
+        
+        # Router: If the AI wants to use a DO tool, go to 'tools', else END
         workflow.add_conditional_edges(
-            "agent", 
+            "agent",
             lambda x: "tools" if x["messages"][-1].tool_calls else END
         )
         workflow.add_edge("tools", "agent")
 
-        # Compile with persistence
+        # Compile with persistent thread memory
         app = workflow.compile(checkpointer=MemorySaver())
         config = {"configurable": {"thread_id": thread_id}}
-
-        # Execute
+        
+        # 6. Run the agent asynchronously
         result = await app.ainvoke(
             {"messages": [HumanMessage(content=user_input)]}, 
             config
@@ -71,13 +79,14 @@ async def run_agent_with_mcp(user_input: str, thread_id: str):
 
 @entrypoint
 def main(payload: dict) -> dict:
-    user_input = payload.get("prompt", "List my apps")
-    thread_id = payload.get("thread_id", "mcp-session-1")
+    # This is the "front door" of your DigitalOcean Agent
+    user_input = payload.get("prompt", "Hello")
+    thread_id = payload.get("thread_id", "mcp-demo-thread")
     
-    # Run the async loop
-    response_text = asyncio.run(run_agent_with_mcp(user_input, thread_id))
+    # Use asyncio.run to handle the 3.14/3.12 bridge
+    final_response = asyncio.run(run_mcp_agent(user_input, thread_id))
     
     return {
-        "response": response_text,
+        "response": final_response,
         "thread_id": thread_id
     }
