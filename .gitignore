@@ -1,5 +1,11 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-
-# Environments
+# Ignore environment variables
 .env
+
+# Ignore Python cache and build files
+__pycache__/
+*.pyc
+.DS_Store
+
+# Ignore virtual environments
+venv/
+env/
