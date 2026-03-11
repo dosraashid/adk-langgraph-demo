@@ -1,148 +1,143 @@
-# 🤖 DigitalOcean ADK + LangGraph: DevOps Agent Demo
+# 🤖 DigitalOcean ADK + MCP + LangGraph + Context: DevOps Agent Demo
 
-This repository is a production-ready, dual-purpose template demonstrating the "Golden Path" for building stateful, tool-enabled AI agents. It integrates **LangGraph** orchestration with **DigitalOcean Serverless Inference** and uses the **Gradient ADK** for seamless local testing and cloud deployment.
+This repository demonstrates the **"Golden Path"** for building an autonomous DevOps agent. It integrates **DigitalOcean Serverless Inference (Llama 3.3)** with the **Model Context Protocol (MCP)** and **LangGraph** to create a system that doesn't just answer questions—it manages infrastructure.
 
 ---
 
-## 📂 Project Structure & File Guide
+## 🏗️ Project Structure & File Guide
 
-Here is a breakdown of how this agent is built and what each file does:
+A clean, modular structure optimized for a Hybrid Runtime (Local Python + Local Node.js + Cloud LLM).
 
 ```text
-adk-langgraph-demo/
-├── .env                # (Local Only) Stores your private GRADIENT_MODEL_ACCESS_KEY.
-├── .gradient/          
-│   └── agent.yml       # The blueprint DigitalOcean reads when you run `deploy`.
-├── main.py             # The core brain. Connects LangGraph, ADK, and the LLM together.
-├── README.md           # This instruction manual.
-├── requirements.txt    # The list of Python libraries needed to run the agent.
-├── state.py            # Defines the memory structure so the agent remembers threads.
-└── tools.py            # The "hands" of the AI (mock database and tool functions).
+/cloudpilot-agent
+├── .env                  # 🔑 Local API keys (Never committed to Git)
+├── .gitignore            # 🛡️ Security: Prevents sensitive keys from leaking
+├── main.py               # 🧠 The Brain, Hands, and Memory (All-in-One Orchestrator)
+├── requirements.txt      # 📦 Python dependency manifest
+└── README.md             # 📝 Detailed Project Documentation
 ```
----
-
-## 📂 Detailed File Breakdown
-
-* **`main.py`**: The central orchestrator. It establishes a live connection to the **DigitalOcean MCP Server**, dynamically discovers cloud management tools, and runs the LangGraph loop to process user requests via **DigitalOcean Serverless Inference**.
-* **`state.py`**: The schema for the agent's memory. It defines how message history and custom "facts" (like project IDs) are stored and appended using LangGraph's persistent checkpointers.
-* **`project.toml`**: The multi-runtime configuration. It tells the DigitalOcean build system to install both **Python** (for the Agent) and **Node.js** (to run the MCP server) in the same environment.
-* **`.gradient/agent.yml`**: The deployment blueprint. It defines the cloud entrypoint and metadata required for the DigitalOcean Cloud Panel to host your agent as a scalable API.
 
 ---
 
-## 🌟 Key Capabilities
+# 🔍 Detailed File Breakdown
 
-* **Model Context Protocol (MCP)**: Leverages the official DigitalOcean MCP server to dynamically "discover" real-world tools. The agent doesn't just simulate DevOps; it actually manages Droplets, Apps, and Databases.
-* **LangGraph Orchestration**: Handles complex, multi-step reasoning—such as identifying a failing service, reading its logs, and suggesting a fix in a single conversation turn.
-* **Managed Persistence**: Uses LangGraph Checkpointers to isolate user sessions via `thread_id`. The agent remembers your infrastructure context even if you close the terminal.
-* **Hybrid Runtime**: Combines **Llama 3.3** reasoning with a dual-language (Python/Node.js) execution environment, allowing for high-level intelligence and low-level system control.
+## 1. `main.py`
+The central orchestrator of the agent. This file handles three mission-critical roles:
+
+**The Connector:**  
+Establishes a live connection to the DigitalOcean MCP Server via a local `stdio` subprocess, allowing the agent to discover and use cloud tools dynamically.
+
+**The Logic Engine:**  
+Runs the LangGraph state machine, which coordinates the reasoning loop between the user's request and the model's response.
+
+**The Memory:**  
+Utilizes an inline `MemorySaver` to provide managed persistence, ensuring that conversation history is preserved across multiple turns.
+
+## 2. `requirements.txt`
+Defines the dependencies for the Hybrid Runtime.
+
+It pulls in:
+- `langchain-gradient` for inference
+- `langgraph` for state management
+- `mcp` adapters to bridge Python with the official DigitalOcean Node.js tool server
+
+## 3. `.env` & `.gitignore`
+Ensures **Security by Design**.
+
+- The `.env` file stores your `DIGITALOCEAN_API_TOKEN` and `GRADIENT_MODEL_ACCESS_KEY` locally.
+- The `.gitignore` prevents these secrets from ever being pushed to a public repository.
 
 ---
 
-### 🚀 Recommended "Wow" Tests
+# ✨ Key Capabilities
 
-Use these prompts to showcase the unique capabilities of the MCP + LangGraph architecture:
+| Capability | Description |
+|---|---|
+| **Llama 3.3 Reasoning** | Powered by Serverless Inference, providing high-level DevOps intelligence without the need for local GPUs, with the flexibility to easily switch between any supported models by updating the model parameter in main.py. |
+| **MCP Integration** | Leverages the official DigitalOcean MCP server via `npx` to dynamically execute real-world tools for Droplets, Apps, and Databases. |
+| **LangGraph Orchestration** | Handles complex, multi-step reasoning—such as identifying a failing service and suggesting a fix—in a single turn. |
+| **Managed Persistence** | Uses LangGraph `MemorySaver` to isolate user sessions via `thread_id`, remembering infrastructure context across prompts. |
+
+---
+
+# 🚀 Recommended "Wow" Tests
+
+Use these prompts to showcase the unique capabilities of the **MCP + LangGraph architecture**.
 
 | Feature Highlight | Goal | Prompt Payload |
-| :--- | :--- | :--- |
-| **MCP Discovery** | **Tool Awareness** | `{"prompt": "What DigitalOcean tools do you have access to right now?", "thread_id": "mcp-demo"}` |
-| **Live Account Data** | **Real-time Stats** | `{"prompt": "List my active droplets and tell me which ones are in NYC3.", "thread_id": "mcp-demo"}` |
-| **Reasoning** | **Infrastructure Audit** | `{"prompt": "Check my account balance. Based on my usage, do I have any idle resources?", "thread_id": "mcp-demo"}` |
-| **LangGraph Orchestration** | **Multi-step Debugging** | `{"prompt": "Find my app named 'web-service', check its last deployment status, and if it failed, summarize the error logs.", "thread_id": "mcp-demo"}` |
-| **Managed Persistence** | **Cross-Session Memory** | `{"prompt": "Remember that 'web-service' is my high-priority app. Based on our last chat, is it healthy now?", "thread_id": "mcp-demo"}` |
-| **Hybrid Runtime** | **Intelligence + Control** | `{"prompt": "Analyze my account spending. Suggest which droplets I can resize or power down to save at least 10% this month.", "thread_id": "mcp-demo"}` |
+|---|---|---|
+| **MCP Discovery** | Tool Awareness | What DigitalOcean tools do you have access to right now? |
+| **Live Account Data** | Real-time Stats | List my active droplets and tell me which ones are in NYC3. |
+| **Reasoning** | Infrastructure Audit | Check my account balance. Based on my usage, do I have any idle resources? |
+| **LangGraph Orchestration** | Multi-step Debugging | Find my app named 'web-service', check its last deployment status, and if it failed, summarize the error logs. |
+| **Managed Persistence** | Cross-Session Memory | Remember that 'web-service' is my high-priority app. Based on our last chat, is it healthy now? |
+| **Hybrid Runtime** | Intelligence + Control | Analyze my account spending. Suggest which droplets I can resize or power down to save at least 10% this month. |
 
 ---
 
-## 🛠️ Initial Setup (Python 3.12 Recommended)
+## 🚀 Setup & Installation
 
-1. **Environment Setup:**
-   ```bash
-   git clone https://github.com/dosraashid/adk-langgraph-demo
-   cd adk-langgraph-demo
-   python3.12 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
+### 1. Prerequisites
+- Python **3.10+**
+- **Node.js / NPM** (for `npx`)
+- A **DigitalOcean API Token**
+- A **Gradient AI Model Access Key**
 
-2. **Credentials (.env):**
-   ```text
-   GRADIENT_MODEL_ACCESS_KEY="your_model_key"
-   DIGITALOCEAN_API_TOKEN="your_do_token"
-   ```
+### 2. Install
 
----
-
-### 🚀 Initializing the Gradient Agent
-
-Before running or deploying the project, you need to initialize your agent with the Gradient ADK. This step links your local code to the Gradient platform so your `@entrypoint` is recognized.
-
-Run the following command in the root directory of your project:
+Install the required Python dependencies:
 
 ```bash
-gradient agent init
+pip install -r requirements.txt
 ```
 
-The CLI will prompt you for a few details to configure your workspace. Here is what you should enter based on this project's setup:
+### 3. Configure
 
-* **Agent workspace name:** `cloudpilotmcp` *(This should match the name in your package.json)*
-* **Agent deployment name [main]:** `main`
+Create a .env file in the root directory and add your credentials:
 
-**What this command does:**
-It generates the necessary Gradient configuration files and registers your local agent environment, ensuring that your `main` function is properly mapped as the "front door" for incoming requests.
+```bash
+GRADIENT_MODEL_ACCESS_KEY="your_model_access_key"
+DIGITALOCEAN_API_TOKEN="your_DO_token"
+```
 
----
+Make sure .env is listed in your .gitignore to prevent accidental exposure of secrets.
 
-## 🚀 Choose Your Path
+### 4. Run
 
-This template is designed to work perfectly in two different environments without changing any code.
+Start the agent in interactive mode:
 
-### Option 1: Run Locally (Fast Testing)
+```bash
+python main.py
+```
 
-Keep the agent logic on your local machine while using DigitalOcean Serverless GPUs for the AI "brain" and your local Node.js runtime to power the MCP server.
-
-1. **Start the server:**
-   ```bash
-   gradient agent run
-   ```
-
-2. **Test the "MCP Golden Path" (in a new terminal):**
-
-   *Step A: Live Infrastructure Discovery (The Handshake)*
-   ```bash
-   curl -X POST http://localhost:8080/run \
-   -H "Content-Type: application/json" \
-   -d '{"prompt": "What DigitalOcean tools do you have access to right now?", "thread_id": "mcp-demo"}'
-   ```
-
-   *Step B: Real-time Account Analysis (Read)*
-   ```bash
-   curl -X POST http://localhost:8080/run \
-   -H "Content-Type: application/json" \
-   -d '{"prompt": "List my active droplets and their current status.", "thread_id": "mcp-demo"}'
-   ```
-
-   *Step C: Action & Reasoning (Manage)*
-   ```bash
-   curl -X POST http://localhost:8080/run \
-   -H "Content-Type: application/json" \
-   -d '{"prompt": "Based on my current resource usage, do you recommend any optimizations?", "thread_id": "mcp-demo"}'
-   ```
+Once running, you can begin issuing prompts to the system.
 
 ---
 
-### Option 2: Deploy to Cloud (Production)
+## 🏗 Architecture: The Hybrid Runtime
+1. **Local Python Host:** Manages the LangGraph state machine and conversation memory.
+2. **Local Node.js Client:** Spawns via MCP (`stdio`) using `npx` to interact with DigitalOcean's infrastructure.
+3. **Cloud Serverless Inference:** Offloads the massive Llama 3.3 70B computation to DigitalOcean's managed GPU clusters.
 
-Push your agent to the DigitalOcean Cloud Panel for 24/7 access, automatic scaling, and built-in observability.
+---
 
-1. **Export your Personal Access Token:** *(This token is used by the CLI for deployment and by the Agent's MCP server for resource management)*
-   ```bash
-   export DIGITALOCEAN_API_TOKEN="dop_v1_your_personal_token_here"
-   ```
+## 🛠️ Requirements & Troubleshooting
 
-2. **Deploy the agent:**
-   ```bash
-   gradient agent deploy
-   ```
+### Node.js Dependency
+Because this agent uses the **Model Context Protocol (MCP)**, it requires **Node.js** to be installed on your local machine. The `main.py` script uses `npx` to fetch and run the official DigitalOcean tool server. 
+* **Verify installation:** Run `node -v` in your terminal.
 
-3. **Monitor & Manage:** Once deployed, your agent will be live and accessible via a public endpoint. You can view logs, execution traces, and manage your `DIGITALOCEAN_API_TOKEN` secret in the **GenAI > Agents** section of your DigitalOcean Console.
+### Environment Secrets
+Ensure your `.env` file is in the root directory. If you see a `401 Unauthorized` error, double-check that your **DigitalOcean API Token** has "Write" scopes for the services you want to manage (Droplets, Apps, etc.).
+
+---
+
+## 🤝 Contributing
+This is a demo of the **Golden Path** for AI-driven DevOps. If you'd like to extend the agent's capabilities:
+1. **Add new tools:** Update the `--services` flag in the `npx` command within `main.py`.
+2. **Modify the Brain:** Switch the `model` parameter in `ChatGradient` to test different Llama variants.
+3. **Enhance Memory:** Explore `PostgresSaver` in LangGraph for long-term database-backed persistence.
+
+---
+
+
