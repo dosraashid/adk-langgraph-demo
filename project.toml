@@ -1,0 +1,6 @@
+# project.toml
+[[build]]
+  buildpacks = [
+    "heroku/nodejs",
+    "heroku/python"
+  ]
