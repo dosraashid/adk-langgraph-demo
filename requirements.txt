@@ -1,4 +1,5 @@
 # --- AI Inference ---
+langchain-core>=0.3.0   # Essential core logic for message handling
 langchain-gradient      # Connects to DigitalOcean Serverless Llama 3.3
 
 # --- Orchestration & Memory ---
@@ -6,7 +7,7 @@ langgraph               # Manages reasoning loops and persistent state
 
 # --- Model Context Protocol (MCP) ---
 mcp                     # The core official Python SDK for MCP
-langchain-mcp-adapters  # Bridges MCP servers into LangChain/LangGraph
+langchain-mcp-adapters>=0.1.0  # Required for modern tool-loading logic
 
 # --- Utilities ---
 gradient-adk            # Allows running via 'gradient agent run'
