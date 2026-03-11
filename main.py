@@ -28,15 +28,13 @@ class AgentState(TypedDict):
 
 # 1. Define the Agent Logic
 async def run_mcp_agent(user_input: str, thread_id: str):
+    
+    # --- UPDATED: Connect via SSE to the remote DigitalOcean MCP Server ---
+    # Make sure to replace the URL below with your actual DigitalOcean App Platform URL
     client = MultiServerMCPClient({
         "digitalocean": {
-            "transport": "stdio",
-            "command": "npx",
-            "args": ["-y", "@digitalocean/mcp", "--services", "apps,droplets,databases"],
-            "env": {
-                **os.environ, 
-                "DIGITALOCEAN_API_TOKEN": os.getenv("DIGITALOCEAN_API_TOKEN")
-            }
+            "transport": "sse",
+            "url": os.getenv("MCP_SERVER_URL", "https://your-app-name-abcde.ondigitalocean.app/sse")
         }
     })
     
