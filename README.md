@@ -1,6 +1,6 @@
 # 🤖 DigitalOcean ADK + MCP + LangGraph + Context: DevOps Agent Demo
 
-This repository demonstrates the **"Golden Path"** for building an autonomous DevOps agent. It integrates **DigitalOcean Serverless Inference (Llama 3.3)** with the **Model Context Protocol (MCP)** and **LangGraph** to create a system that doesn't just answer questions—it manages infrastructure.
+This repository demonstrates the **"Golden Path"** for building an autonomous DevOps agent. It integrates **DigitalOcean Serverless Inference (OpenAI GPT 5.4)** with the **Model Context Protocol (MCP)** and **LangGraph** to create a system that doesn't just answer questions—it manages infrastructure.
 
 ---
 
@@ -53,7 +53,7 @@ Ensures **Security by Design**.
 
 | Capability | Description |
 |---|---|
-| **Llama 3.3 Reasoning** | Powered by Serverless Inference, providing high-level DevOps intelligence without the need for local GPUs, with the flexibility to easily switch between any supported models by updating the model parameter in main.py. |
+| **LLM Reasoning** | Powered by Serverless Inference, providing high-level DevOps intelligence without the need for local GPUs, with the flexibility to easily switch between any supported models by updating the model parameter in main.py. |
 | **MCP Integration** | Leverages the official DigitalOcean MCP server via `npx` to dynamically execute real-world tools for Droplets, Apps, and Databases. |
 | **LangGraph Orchestration** | Handles complex, multi-step reasoning—such as identifying a failing service and suggesting a fix—in a single turn. |
 | **Managed Persistence** | Uses LangGraph `MemorySaver` to isolate user sessions via `thread_id`, remembering infrastructure context across prompts. |
@@ -108,38 +108,73 @@ Make sure .env is listed in your .gitignore to prevent accidental exposure of se
 
 ### 4. Run
 
-Start the agent in interactive mode:
+Start the agent server locally using the Gradient ADK:
 
 ```bash
-python main.py
+gradient agent run
 ```
 
-Once running, you can begin issuing prompts to the system.
+This will spin up a local Uvicorn server (typically on `http://localhost:8080`). Once it is running, you can issue prompts to the system in a separate terminal tab using `curl`. 
+
+By passing a `thread_id` in your JSON payload, you tell the agent which "save slot" to use, allowing it to maintain conversational memory across multiple requests.
+
+```bash
+curl -X POST http://localhost:8080/run \
+     -H "Content-Type: application/json" \
+     -d '{
+           "prompt": "List my DigitalOcean apps.",
+           "thread_id": "my-dev-session-1"
+         }'
+```
 
 ---
 
+## 🧠 Testing Context Memory & Thread Isolation
+
+Use the following test cases in sequence to verify that the agent remembers previous interactions on the same thread, but isolates data from different threads.
+
+| Test Case | Purpose | Terminal Command (`curl`) | Expected Behavior |
+| :--- | :--- | :--- | :--- |
+| **1. Establish Context** | Fetches initial data and saves it to a specific thread. | `curl -X POST http://localhost:8080/run -H "Content-Type: application/json" -d '{"prompt": "Can you list the names of any 5 DigitalOcean apps in my account?", "thread_id": "session-alpha"}'` | The agent triggers the MCP tool, retrieves your apps, and returns a list of 5 names. |
+| **2. Test Memory** | Asks a follow-up question requiring exact recall of the previous turn. | `curl -X POST http://localhost:8080/run -H "Content-Type: application/json" -d '{"prompt": "What were the names of the first and last apps on that list?", "thread_id": "session-alpha"}'` | The agent answers immediately with the two specific names **without** running the list tool again, proving it remembers the context. |
+| **3. Test Isolation** | Verifies that a new thread starts with a blank slate. | `curl -X POST http://localhost:8080/run -H "Content-Type: application/json" -d '{"prompt": "What were the names of the first and last apps on that list?", "thread_id": "session-beta"}'` | The agent gets confused or states it doesn't have a list to reference, proving that `session-beta` cannot see the data from `session-alpha`. |
+
+---
+---
+
 ## 🏗 Architecture: The Hybrid Runtime
-1. **Local Python Host:** Manages the LangGraph state machine and conversation memory.
-2. **Local Node.js Client:** Spawns via MCP (`stdio`) using `npx` to interact with DigitalOcean's infrastructure.
-3. **Cloud Serverless Inference:** Offloads the massive Llama 3.3 70B computation to DigitalOcean's managed GPU clusters.
+
+1. **Gradient ADK Host:** Manages the local API server (/run), the LangGraph state machine, and persistent session memory via thread_id.
+2. **Local Node.js Client:** Spawns a subprocess via MCP (stdio) using npx to securely interact with your live DigitalOcean infrastructure.
+3. **Cloud Serverless Inference:** Offloads the complex, multi-step ReAct reasoning to the frontier OpenAI GPT-5.4 model, routed securely through DigitalOcean's native Gradient AI gateway.
 
 ---
 
 # 🛠️ Requirements & Troubleshooting
 
 ### Node.js Dependency
+
 Because this agent uses the **Model Context Protocol (MCP)**, it requires **Node.js** to be installed on your local machine. The `main.py` script uses `npx` to fetch and run the official DigitalOcean tool server. 
 * **Verify installation:** Run `node -v` in your terminal.
 
 ### Environment Secrets
-Ensure your `.env` file is in the root directory. If you see a `401 Unauthorized` error, double-check that your **DigitalOcean API Token** has "Write" scopes for the services you want to manage (Droplets, Apps, etc.).
+
+Ensure your .env file is in the root directory and contains the following:
+
+* **DIGITALOCEAN_API_TOKEN:** Must have `Write` scopes if you plan to manage/modify resources (Droplets, Apps, Databases).
+* **GRADIENT_MODEL_ACCESS_KEY:** Required to authenticate your inference calls to the GPT-5.4 model on the Gradient platform.
+  
+### Common Errors
+
+* **Connection Refused:** Ensure you are targeting the correct port in your curl command (usually 8080 or 8000). Check the gradient agent run startup logs to confirm.
+* **401 Unauthorized:** Double-check that your API tokens are valid and correctly loaded in the .env file.
 
 ---
 
 # 🤝 Contributing
 This is a demo of the **Golden Path** for AI-driven DevOps. If you'd like to extend the agent's capabilities:
 1. **Add new tools:** Update the `--services` flag in the `npx` command within `main.py`.
-2. **Modify the Brain:** Switch the `model` parameter in `ChatGradient` to test different Llama variants.
+2. **Modify the Brain:** Switch the `model` parameter in `ChatGradient` to test different LLM variants.
 3. **Enhance Memory:** Explore `PostgresSaver` in LangGraph for long-term database-backed persistence.
 
 ---
