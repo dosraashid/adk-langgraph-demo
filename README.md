@@ -19,20 +19,34 @@ adk-langgraph-demo/
 ├── state.py            # Defines the memory structure so the agent remembers threads.
 └── tools.py            # The "hands" of the AI (mock database and tool functions).
 ```
+---
 
-### Detailed File Breakdown
-* **`main.py`**: The main entrypoint. It receives the web request, injects the `thread_id` into LangGraph's checkpointer, passes the prompt to DigitalOcean's Serverless Inference API, and returns the final response.
-* **`tools.py`**: This is where your custom business logic lives. It contains the mock database (Users and Servers) and the `@tool` decorated functions the AI can call to look up data or perform actions.
-* **`state.py`**: The schema for the agent's memory. It defines how standard conversation messages and custom shared memory (like user IDs) are appended and stored.
-* **`.gradient/agent.yml`**: A required configuration file for the DigitalOcean Cloud Panel. It tells the cloud environment how to host and run your `main.py` file.
+## 📂 Detailed File Breakdown
+
+* **`main.py`**: The central orchestrator. It establishes a live connection to the **DigitalOcean MCP Server**, dynamically discovers cloud management tools, and runs the LangGraph loop to process user requests via **DigitalOcean Serverless Inference**.
+* **`state.py`**: The schema for the agent's memory. It defines how message history and custom "facts" (like project IDs) are stored and appended using LangGraph's persistent checkpointers.
+* **`project.toml`**: The multi-runtime configuration. It tells the DigitalOcean build system to install both **Python** (for the Agent) and **Node.js** (to run the MCP server) in the same environment.
+* **`.gradient/agent.yml`**: The deployment blueprint. It defines the cloud entrypoint and metadata required for the DigitalOcean Cloud Panel to host your agent as a scalable API.
 
 ---
 
 ## 🌟 Key Capabilities
-* **LangGraph Orchestration**: Handles multi-step reasoning (e.g., finding a user, then checking their assigned servers).
-* **Managed Persistence**: Uses LangGraph Checkpointers to remember conversation history and isolate sessions via `thread_id`.
-* **Standardized Tools**: Implements `ToolNode` with an interconnected mock database for User and Server management.
-* **Serverless Intelligence**: Securely connects to DigitalOcean's hosted Llama 3.3 models—no local GPU required.
+
+* **Model Context Protocol (MCP)**: Leverages the official DigitalOcean MCP server to dynamically "discover" real-world tools. The agent doesn't just simulate DevOps; it actually manages Droplets, Apps, and Databases.
+* **LangGraph Orchestration**: Handles complex, multi-step reasoning—such as identifying a failing service, reading its logs, and suggesting a fix in a single conversation turn.
+* **Managed Persistence**: Uses LangGraph Checkpointers to isolate user sessions via `thread_id`. The agent remembers your infrastructure context even if you close the terminal.
+* **Hybrid Runtime**: Combines **Llama 3.3** reasoning with a dual-language (Python/Node.js) execution environment, allowing for high-level intelligence and low-level system control.
+
+---
+
+## 🚀 Recommended "Wow" Tests
+Once deployed, try these commands to show off the MCP integration:
+
+| Goal | Prompt Payload |
+| :--- | :--- |
+| **Discovery** | `{"prompt": "What DigitalOcean tools do you have access to right now?", "thread_id": "mcp-demo"}` |
+| **Live Stats** | `{"prompt": "List my active droplets and tell me which ones are in NYC3.", "thread_id": "mcp-demo"}` |
+| **Reasoning** | `{"prompt": "Check my account balance. Based on my usage, do I have any idle resources?", "thread_id": "mcp-demo"}` |
 
 ---
 
