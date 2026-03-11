@@ -115,8 +115,9 @@ gradient agent init
 ```
 
 When prompted:
-Agent workspace name: Give it any random name like `OceanSentry`.
-Agent deployment name: Set this to `main`.
+
+* Agent workspace name: Give it any random name like `OceanSentry`.
+* Agent deployment name: Set this to `main`.
 
 ### 5. Run
 
